@@ -15,3 +15,4 @@ from .extension_types import (
     construct_numpy_array,
 )
 from .coords import get_flat_coords_offset_arrays, get_geometries_from_flatcoords
+from .io import read_parquet, to_parquet

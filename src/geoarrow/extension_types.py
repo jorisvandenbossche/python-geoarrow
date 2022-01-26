@@ -27,6 +27,23 @@ _multiline_type = pa.list_(pa.list_(pa.list_(pa.float64(), 2)))
 _multipolygon_type = pa.list_(pa.list_(pa.list_(pa.list_(pa.float64(), 2))))
 
 
+# # TODO temporary version without names for compat with R geoarrow
+# _point_type = pa.list_(
+#     pa.field("", pa.float64()), 2)
+# _multipoint_type = pa.list_(
+#     pa.field("", pa.list_(
+#         pa.field("", pa.float64()), 2)))
+# _multiline_type = pa.list_(
+#     pa.field("", pa.list_(
+#         pa.field("", pa.list_(
+#             pa.field("", pa.float64()), 2)))))
+# _multipolygon_type = pa.list_(
+#     pa.field("", pa.list_(
+#         pa.field("", pa.list_(
+#             pa.field("", pa.list_(
+#                 pa.field("", pa.float64()), 2)))))))
+
+
 class ArrowGeometryArray(pa.ExtensionArray):
     def to_numpy(self, **kwargs):
         return construct_numpy_array(self.storage, self.type.extension_name)
