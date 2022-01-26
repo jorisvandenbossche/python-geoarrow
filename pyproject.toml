@@ -1,16 +1,11 @@
-[tool.poetry]
-name = "geoarrow"
-version = "0.1.0"
-description = "Storing geometry data in Apache Arrow format"
-authors = ["Joris Van den Bossche"]
-license = "MIT"
-readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.9"
-
-[tool.poetry.dev-dependencies]
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "geoarrow"
+authors = [{name = "Joris Van den Bossche"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
