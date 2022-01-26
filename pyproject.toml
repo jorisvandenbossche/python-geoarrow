@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "geoarrow"
+version = "0.1.0"
+description = "Storing geometry data in Apache Arrow format"
+authors = ["Joris Van den Bossche"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
