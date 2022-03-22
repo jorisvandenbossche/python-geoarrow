@@ -59,8 +59,6 @@ class PointGeometryType(BaseGeometryType):
 
 
 _point_type = PointGeometryType()
-pa.register_extension_type(_point_type)
-
 
 _linestring_storage_type = pa.list_(pa.field("vertices", _point_type))
 _polygon_storage_type = pa.list_(
@@ -79,9 +77,7 @@ class PolygonGeometryType(BaseGeometryType):
 
 
 _linestring_type = LineStringGeometryType()
-pa.register_extension_type(_linestring_type)
 _polygon_type = PolygonGeometryType()
-pa.register_extension_type(_polygon_type)
 
 
 _multipoint_storage_type = pa.list_(pa.field("points", _point_type))
@@ -105,11 +101,32 @@ class MultiPolygonGeometryType(BaseGeometryType):
 
 
 _multipoint_type = MultiPointGeometryType()
-pa.register_extension_type(_multipoint_type)
 _multilinestring_type = MultiLineStringGeometryType()
-pa.register_extension_type(_multilinestring_type)
 _multipolygon_type = MultiPolygonGeometryType()
-pa.register_extension_type(_multipolygon_type)
+
+
+def register_geometry_extension_types():
+    for geom_type in [
+        _point_type,
+        _linestring_type,
+        _polygon_type,
+        _multipoint_type,
+        _multilinestring_type,
+        _multipolygon_type,
+    ]:
+        pa.register_extension_type(geom_type)
+
+
+def unregister_geometry_extension_types():
+    for geom_name in [
+        "geoarrow.point",
+        "geoarrow.linestring",
+        "geoarrow.polygon",
+        "geoarrow.multipoint",
+        "geoarrow.multilinestring",
+        "geoarrow.multipolygon",
+    ]:
+        pa.unregister_extension_type(geom_name)
 
 
 def construct_geometry_array(arr):
