@@ -3,48 +3,16 @@ import pyarrow as pa
 
 from .coords import get_flat_coords_offset_arrays, get_geometries_from_flatcoords
 
-# _point_type = pa.list_(
-#     pa.field("xy", pa.float64(), nullable=False), 2)
-# _multipoint_type = pa.list_(
-#     pa.field("parts", pa.list_(
-#         pa.field("xy", pa.float64(), nullable=False), 2), nullable=False))
-# _multiline_type = pa.list_(
-#     pa.field("parts", pa.list_(
-#         pa.field("vertices", pa.list_(
-#             pa.field("xy", pa.float64(), nullable=False), 2), nullable=False))))
-# _multipolygon_type = pa.list_(
-#     pa.field("parts", pa.list_(
-#         pa.field("rings", pa.list_(
-#             pa.field("vertices", pa.list_(
-#                 pa.field("xy", pa.float64(), nullable=False), 2),
-#         nullable=False)), nullable=False))))
-
-
-# the simpler versions (because creating arrays with that exact type is hard)
-_point_type = pa.list_(pa.float64(), 2)
-_multipoint_type = pa.list_(pa.list_(pa.float64(), 2))
-_multiline_type = pa.list_(pa.list_(pa.list_(pa.float64(), 2)))
-_multipolygon_type = pa.list_(pa.list_(pa.list_(pa.list_(pa.float64(), 2))))
-
-
-# # TODO temporary version without names for compat with R geoarrow
-# _point_type = pa.list_(
-#     pa.field("", pa.float64()), 2)
-# _multipoint_type = pa.list_(
-#     pa.field("", pa.list_(
-#         pa.field("", pa.float64()), 2)))
-# _multiline_type = pa.list_(
-#     pa.field("", pa.list_(
-#         pa.field("", pa.list_(
-#             pa.field("", pa.float64()), 2)))))
-# _multipolygon_type = pa.list_(
-#     pa.field("", pa.list_(
-#         pa.field("", pa.list_(
-#             pa.field("", pa.list_(
-#                 pa.field("", pa.float64()), 2)))))))
-
 
 class ArrowGeometryArray(pa.ExtensionArray):
+    @property
+    def values(self):
+        return self.storage.values
+
+    @property
+    def offsets(self):
+        return self.storage.offsets
+
     def to_numpy(self, **kwargs):
         return construct_numpy_array(self.storage, self.type.extension_name)
 
@@ -64,13 +32,13 @@ class BaseGeometryType(pa.ExtensionType):
         return self._crs
 
     def __arrow_ext_serialize__(self):
-        return "crs={}".format(self.crs or "").encode()
+        return b"CREATED"
 
     @classmethod
     def __arrow_ext_deserialize__(cls, storage_type, serialized):
         # return an instance of this subclass given the serialized
         # metadata.
-        # TODO ignore serliaed metadata for now
+        # TODO ignore serialized metadata for now
         # serialized = serialized.decode()
         # assert serialized.startswith("crs=")
         # crs = serialized.split('=')[1]
@@ -82,45 +50,66 @@ class BaseGeometryType(pa.ExtensionType):
         return ArrowGeometryArray
 
 
+_point_storage_type = pa.list_(pa.field("xy", pa.float64()), 2)
+
+
 class PointGeometryType(BaseGeometryType):
-    _storage_type = _point_type
+    _storage_type = _point_storage_type
     _extension_name = "geoarrow.point"
 
 
+_point_type = PointGeometryType()
+pa.register_extension_type(_point_type)
+
+
+_linestring_storage_type = pa.list_(pa.field("vertices", _point_type))
+_polygon_storage_type = pa.list_(
+    pa.field("rings", pa.list_(pa.field("vertices", _point_type)))
+)
+
+
+class LineStringGeometryType(BaseGeometryType):
+    _storage_type = _linestring_storage_type
+    _extension_name = "geoarrow.linestring"
+
+
+class PolygonGeometryType(BaseGeometryType):
+    _storage_type = _polygon_storage_type
+    _extension_name = "geoarrow.polygon"
+
+
+_linestring_type = LineStringGeometryType()
+pa.register_extension_type(_linestring_type)
+_polygon_type = PolygonGeometryType()
+pa.register_extension_type(_polygon_type)
+
+
+_multipoint_storage_type = pa.list_(pa.field("points", _point_type))
+_multilinestring_storage_type = pa.list_(pa.field("linestrings", _linestring_type))
+_multipolygon_storage_type = pa.list_(pa.field("polygons", _polygon_type))
+
+
 class MultiPointGeometryType(BaseGeometryType):
-    _storage_type = _multipoint_type
+    _storage_type = _multipoint_storage_type
     _extension_name = "geoarrow.multipoint"
 
 
 class MultiLineStringGeometryType(BaseGeometryType):
-    _storage_type = _multiline_type
+    _storage_type = _multilinestring_storage_type
     _extension_name = "geoarrow.multilinestring"
 
 
 class MultiPolygonGeometryType(BaseGeometryType):
-    _storage_type = _multipolygon_type
+    _storage_type = _multipolygon_storage_type
     _extension_name = "geoarrow.multipolygon"
 
 
-_point = PointGeometryType()
-pa.register_extension_type(_point)
-_multipoint = MultiPointGeometryType()
-pa.register_extension_type(_multipoint)
-_multilinestring = MultiLineStringGeometryType()
-pa.register_extension_type(_multilinestring)
-_multipolygon = MultiPolygonGeometryType()
-pa.register_extension_type(_multipolygon)
-
-
-# register polygon as well with same type as MultiPolygon
-
-# class PolygonGeometryType(BaseGeometryType):
-#     _storage_type = _multipolygon_type
-#     _extension_name = 'geoarrow.polygon'
-
-
-# _polygon = PolygonGeometryType()
-# pa.register_extension_type(_polygon)
+_multipoint_type = MultiPointGeometryType()
+pa.register_extension_type(_multipoint_type)
+_multilinestring_type = MultiLineStringGeometryType()
+pa.register_extension_type(_multilinestring_type)
+_multipolygon_type = MultiPolygonGeometryType()
+pa.register_extension_type(_multipolygon_type)
 
 
 def construct_geometry_array(arr):
@@ -160,6 +149,20 @@ def construct_numpy_array(arr, extension_name):
         coords = np.asarray(arr.values)
         # TODO copy is needed because of read-only memoryview bug in pygeos
         return get_geometries_from_flatcoords("point", coords.copy(), None)
+
+    elif extension_name == "geoarrow.linestring":
+        coords = np.asarray(arr.values.values)
+        offsets = np.asarray(arr.offsets)
+        # TODO copy is needed because of read-only memoryview bug in pygeos
+        return get_geometries_from_flatcoords("linestring", coords.copy(), offsets)
+
+    elif extension_name == "geoarrow.polygon":
+        coords = np.asarray(arr.values.values.values)
+        offsets2 = np.asarray(arr.offsets)
+        offsets1 = np.asarray(arr.values.offsets)
+        offsets = (offsets1, offsets2)
+        # TODO copy is needed because of read-only memoryview bug in pygeos
+        return get_geometries_from_flatcoords("polygon", coords.copy(), offsets)
 
     elif extension_name == "geoarrow.multipoint":
         coords = np.asarray(arr.values.values)
