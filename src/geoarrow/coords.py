@@ -1,8 +1,10 @@
 import numpy as np
 
-import pygeos
-from pygeos import GeometryType
-
+try:
+    import pygeos
+    from pygeos import GeometryType
+except ImportError:
+    pass
 
 # # GEOS -> coords/offset arrays
 
@@ -26,6 +28,14 @@ def _get_arrays_multipoint(arr):
     return coords.ravel(), offsets
 
 
+def _get_arrays_linestring(arr):
+    # the coords and offsets into the coordinates of the linestrings
+    coords, indices = pygeos.get_coordinates(arr, return_index=True)
+    offsets = np.insert(np.bincount(indices).cumsum(), 0, 0)
+
+    return coords.ravel(), offsets
+
+
 def _get_arrays_multilinestring(arr):
     # explode/flatten the MultiLineStrings
     arr_flat, part_indices = pygeos.get_parts(arr, return_index=True)
@@ -34,6 +44,19 @@ def _get_arrays_multilinestring(arr):
 
     # the coords and offsets into the coordinates of the linestrings
     coords, indices = pygeos.get_coordinates(arr_flat, return_index=True)
+    offsets1 = np.insert(np.bincount(indices).cumsum(), 0, 0)
+
+    return coords.ravel(), (offsets1, offsets2)
+
+
+def _get_arrays_polygon(arr):
+    # explode/flatten the Polygons into Rings
+    arr_flat2, ring_indices = pygeos.geometry.get_rings(arr, return_index=True)
+    # the offsets into the exterior/interior rings of the multipolygon parts
+    offsets2 = np.insert(np.bincount(ring_indices).cumsum(), 0, 0)
+
+    # the coords and offsets into the coordinates of the rings
+    coords, indices = pygeos.get_coordinates(arr_flat2, return_index=True)
     offsets1 = np.insert(np.bincount(indices).cumsum(), 0, 0)
 
     return coords.ravel(), (offsets1, offsets2)
@@ -65,6 +88,14 @@ def get_flat_coords_offset_arrays(arr):
     if len(geom_types) == 1 and geom_types[0] == GeometryType.POINT:
         typ = "point"
         coords, offsets = _get_arrays_point(arr)
+
+    elif len(geom_types) == 1 and geom_types[0] == GeometryType.LINESTRING:
+        typ = "linestring"
+        coords, offsets = _get_arrays_linestring(arr)
+
+    elif len(geom_types) == 1 and geom_types[0] == GeometryType.POLYGON:
+        typ = "polygon"
+        coords, offsets = _get_arrays_polygon(arr)
 
     elif all(t in {GeometryType.POINT, GeometryType.MULTIPOINT} for t in geom_types):
         typ = "multipoint"
@@ -111,6 +142,15 @@ def _multipoint_from_flatcoords(coords, offsets):
     return result
 
 
+def _linestring_from_flatcoords(coords, offsets):
+    # recreate linestrings
+    linestring_n = np.diff(offsets)
+    linestring_indices = np.repeat(np.arange(len(linestring_n)), linestring_n)
+    result = pygeos.linestrings(coords.reshape(-1, 2), indices=linestring_indices)
+
+    return result
+
+
 def _multilinestrings_from_flatcoords(coords, offsets1, offsets2):
     # recreate linestrings
     linestring_n = np.diff(offsets1)
@@ -127,7 +167,7 @@ def _multilinestrings_from_flatcoords(coords, offsets1, offsets2):
     return result
 
 
-def _multipolygons_from_flatcoords(coords, offsets1, offsets2, offsets3):
+def _polygon_from_flatcoords(coords, offsets1, offsets2):
     # recreate rings
     ring_lengths = np.diff(offsets1)
     ring_indices = np.repeat(np.arange(len(ring_lengths)), ring_lengths)
@@ -136,7 +176,14 @@ def _multipolygons_from_flatcoords(coords, offsets1, offsets2, offsets3):
     # recreate polygons
     polygon_rings_n = np.diff(offsets2)
     polygon_indices = np.repeat(np.arange(len(polygon_rings_n)), polygon_rings_n)
-    polygons = pygeos.polygons(rings, indices=polygon_indices)
+    result = pygeos.polygons(rings, indices=polygon_indices)
+
+    return result
+
+
+def _multipolygons_from_flatcoords(coords, offsets1, offsets2, offsets3):
+    # recreate polygons
+    polygons = _polygon_from_flatcoords(coords, offsets1, offsets2)
 
     # recreate multipolygons
     multipolygon_parts = np.diff(offsets3)
@@ -152,6 +199,10 @@ def get_geometries_from_flatcoords(typ, coords, offsets):
 
     if typ == "point":
         return _point_from_flatcoords(coords)
+    if typ == "linestring":
+        return _linestring_from_flatcoords(coords, offsets)
+    if typ == "polygon":
+        return _polygon_from_flatcoords(coords, *offsets)
     elif typ == "multipoint":
         return _multipoint_from_flatcoords(coords, offsets)
     elif typ == "multilinestring":

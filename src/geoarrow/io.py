@@ -1,13 +1,17 @@
 import json
 import warnings
 
-import geopandas
-from geopandas.io.arrow import (
-    _create_metadata,
-    _decode_metadata,
-    _encode_metadata,
-    _validate_dataframe,
-)
+try:
+    import geopandas
+    from geopandas.io.arrow import (
+        _create_metadata,
+        _decode_metadata,
+        _encode_metadata,
+        _validate_dataframe,
+    )
+except ImportError:
+    pass
+
 
 from pyarrow import parquet
 

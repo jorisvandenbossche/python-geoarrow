@@ -136,6 +136,18 @@ def construct_geometry_array(arr):
         parr = pa.FixedSizeListArray.from_arrays(coords, 2)
         return pa.ExtensionArray.from_storage(PointGeometryType(), parr)
 
+    elif typ == "linestring":
+        _parr = pa.FixedSizeListArray.from_arrays(coords, 2)
+        parr = pa.ListArray.from_arrays(pa.array(offsets), _parr)
+        return pa.ExtensionArray.from_storage(LineStringGeometryType(), parr)
+
+    elif typ == "polygon":
+        offsets1, offsets2 = offsets
+        _parr = pa.FixedSizeListArray.from_arrays(coords, 2)
+        _parr1 = pa.ListArray.from_arrays(pa.array(offsets1), _parr)
+        parr = pa.ListArray.from_arrays(pa.array(offsets2), _parr1)
+        return pa.ExtensionArray.from_storage(PolygonGeometryType(), parr)
+
     elif typ == "multipoint":
         _parr = pa.FixedSizeListArray.from_arrays(coords, 2)
         parr = pa.ListArray.from_arrays(pa.array(offsets), _parr)
